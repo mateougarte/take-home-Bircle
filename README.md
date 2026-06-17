@@ -59,9 +59,7 @@ Queda disponible en `http://localhost:8501`.
 ## Uso del endpoint directamente
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/chat" \
-  -H "Content-Type: application/json" \
-  -d "{\"user_id\": \"cliente_1\", \"message\": \"¿Tienen camperas para lluvia?\"}"
+curl -X POST "http://127.0.0.1:8000/chat" -H "Content-Type: application/json" -d "{\"user_id\": \"cliente_123\", \"message\": \"¿Tienen carpas para dos personas?\"}"
 ```
 
 ## Arquitectura

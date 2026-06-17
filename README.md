@@ -1,92 +1,105 @@
-# Chatbot Bircle
+# Chatbot Bircle Outdoors
 
-API construida con **FastAPI** que simula un asistente virtual para una tienda de electrónica. El servicio expone un endpoint de chat que mantiene el contexto de la conversación por usuario y responde a sus mensajes.
+Asistente virtual para la tienda **Bircle Outdoors** compuesto por dos servicios:
+
+- **Backend**: API REST construida con FastAPI que mantiene el historial de conversación por usuario y llama al modelo `claude-opus-4-7` de Anthropic.
+- **Frontend**: Interfaz de chat construida con Streamlit que se comunica con el backend vía HTTP.
 
 ## Requisitos
 
 - Python 3.10+
-- pip
+- API key de Anthropic
 
-## Instalación y ejecución
+## Instalación
 
-### 1. Crear el entorno virtual
-
-```bash
-python -m venv venv
-```
-
-### 2. Activar el entorno virtual
-
-En Windows (PowerShell):
+### 1. Crear y activar el entorno virtual
 
 ```powershell
-.\venv\Scripts\Activate.ps1
+python -m venv venv
+.\venv\Scripts\Activate.ps1   # Windows PowerShell
+# source venv/bin/activate    # Linux/macOS
 ```
 
-En Linux/macOS:
-
-```bash
-source venv/bin/activate
-```
-
-### 3. Instalar las dependencias
+### 2. Instalar dependencias
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Iniciar el servidor
+### 3. Configurar la API key
+
+Crear un archivo `.env` en la raíz del proyecto:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## Ejecución
+
+Los dos servicios deben correr en paralelo, cada uno en su propia terminal.
+
+**Terminal 1 — Backend (FastAPI):**
 
 ```bash
 uvicorn main:app --reload
 ```
 
-El servidor quedará disponible en `http://127.0.0.1:8000`. La documentación interactiva (Swagger UI) está en `http://127.0.0.1:8000/docs`.
+Queda disponible en `http://127.0.0.1:8000`. La documentación interactiva (Swagger UI) está en `http://127.0.0.1:8000/docs`.
 
-### Uso del endpoint
+**Terminal 2 — Frontend (Streamlit):**
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/chat" -H "Content-Type: application/json" -d "{\"user_id\": \"cliente_123\", \"message\": \"¿Tienen teclados mecánicos?\"}"
+streamlit run app.py
+```
+
+Queda disponible en `http://localhost:8501`.
+
+## Uso del endpoint directamente
+
+```bash
+curl -X POST "http://127.0.0.1:8000/chat" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\": \"cliente_1\", \"message\": \"¿Tienen camperas para lluvia?\"}"
+```
+
+## Arquitectura
+
+```
+[Streamlit frontend]  →  POST /chat  →  [FastAPI backend]  →  [Anthropic API]
+     app.py                                  main.py              claude-opus-4-7
 ```
 
 ## Decisiones técnicas
 
+### Integración con la API de Anthropic
+
+El backend usa el SDK oficial `anthropic` con un cliente asíncrono (`AsyncAnthropic`), lo que es compatible con el servidor ASGI de FastAPI sin bloquear el event loop. La API key se carga desde `.env` con `python-dotenv` para no hardcodearla en el código.
+
+El `system prompt` se pasa como parámetro independiente en cada llamada a la API (en lugar de insertarlo como primer mensaje del historial). Esto es la forma correcta de usar el parámetro `system` del SDK de Anthropic, y mantiene el historial de mensajes limpio, con solo turnos `user` / `assistant`.
+
 ### Historial en memoria (`conversation_history`)
 
-El contexto de cada conversación se guarda en un diccionario global (`user_id` → lista de mensajes). Es la solución más simple para mantener el estado por usuario sin depender de infraestructura externa (base de datos, caché, etc.). La limitación principal es que el historial se pierde al reiniciar el proceso y no escala a múltiples instancias del servicio; para producción se recomendaría reemplazarlo por un almacenamiento persistente (base de datos) compartido entre instancias.
+El contexto de cada conversación se guarda en un diccionario global (`user_id` → lista de mensajes). Es la solución más simple para mantener el estado por usuario sin depender de infraestructura externa. La limitación principal es que el historial se pierde al reiniciar el proceso y no escala a múltiples instancias; para producción se recomendaría reemplazarlo por un almacenamiento persistente compartido entre instancias.
 
-### Simulación del LLM (`mock_llm_call`)
+### Frontend con Streamlit
 
-En lugar de integrar un proveedor de LLM real, se implementó una función asíncrona que simula la latencia de una llamada a un modelo (`asyncio.sleep(1)`) y devuelve una respuesta genérica basada en el último mensaje del usuario. Esto permite desarrollar y probar el flujo completo de la API (validación de datos, manejo de historial, manejo de errores, logging) sin incurrir en costos ni depender de credenciales de un servicio externo. La función está aislada para poder sustituirse fácilmente por una llamada real a un LLM sin modificar el resto del endpoint.
+El historial de mensajes del frontend se guarda en `st.session_state` para que persista entre re-renders sin necesidad de consultar el estado al backend. El frontend y el backend mantienen sus propios historiales de forma independiente: el backend acumula el contexto real de la conversación para enviárselo al modelo, y el frontend solo persiste lo necesario para mostrar la UI correctamente.
 
 ### Observabilidad con Loguru
 
-Se utiliza `loguru` en lugar del módulo `logging` estándar por su configuración más simple y su salida más legible por defecto. En el endpoint `/chat` se registran tres momentos clave del flujo:
+Se utiliza `loguru` en lugar del módulo `logging` estándar por su configuración más simple y salida más legible. En el endpoint `/chat` se registran tres momentos clave del flujo:
 
 - `logger.info`: cuando se recibe un mensaje, indicando el `user_id`.
-- `logger.error`: si la llamada al LLM (mock) falla, antes de propagar el error como `HTTPException` 500.
+- `logger.error`: si la llamada a la API falla, antes de propagar el error como `HTTPException` 500.
 - `logger.success`: cuando la respuesta se generó y devolvió correctamente.
 
-Esto permite trazar el ciclo de vida de cada solicitud y detectar rápidamente fallos en la generación de respuestas.
+## Proceso de desarrollo
 
-## Proceso de desarrollo.
-1. Configuré el entorno virtual y descargué las dependencias que iba a usar (pip, fastapi, uvicorn, pydantic).
-2. Conecté el entorno virtual a Claude Code, y armé el repositorio inicial de Github.
-3. Armé y refiné el plan de desarrollo para darle un buen prompt inicial a Claude. Aquí tomé la decisión de hacer un primer mvp mockeando la respuesta, y agregar logs más visibles. 
-4. Le pasé el prompt a Claude: " Crea un archivo llamado main.py. Necesito que construyas una API con FastAPI con las siguientes características:
-   Importa FastAPI, HTTPException y BaseModel de Pydantic. Importa logger de loguru.
-   Define un modelo Pydantic ChatRequest con user_id (str) y message (str).
-   Define un modelo ChatResponse con response (str).
-   Crea un diccionario global en memoria llamado conversation_history.
-   Crea una función asíncrona mock_llm_call(history: list) -> str que simule un retraso con asyncio.sleep(1) y devuelva una respuesta genérica basada en el último mensaje.
-   Crea el endpoint POST /chat. Este endpoint debe:
-    - Registrar con loguru (logger.info) que se recibió un mensaje indicando el user_id.
-    - Si el user_id no está en el historial, inicializar su lista con un System Prompt de un asistente de una tienda de electrónica.
-    - Añadir el mensaje del usuario al historial.
-    - Llamar a mock_llm_call dentro de un bloque try/except. Si falla, registrar el error con logger.error y lanzar un HTTPException 500.
-    - Añadir la respuesta del asistente al historial.
-    - Devolver el ChatResponse y registrar con loguru el éxito de la operación."
-5.Fui verificando el avance de Claude, y que me hiciera sentido lo que estaba haciendo en base al plan que había definido. 
-6. Probé y ejecuté el servidor local, y desde otra terminal le envié la petición post. Verifiqué que aparecían los logs, y que devolvía un 200 con mensaje genérico de atención. 
-7. Generé con IA el readme inicial, describiendo el servicio, las instrucciones para iniciarlo, y explicando las decisiones técnicas tomadas.
-8. Hice commit y push de lo generado, y luego adapté el readme para mejorar algunas explicaciones y justificaciones de decisiones.
+1. Configuré el entorno virtual y las dependencias iniciales (FastAPI, uvicorn, pydantic, loguru).
+2. Conecté el entorno virtual a Claude Code y armé el repositorio inicial en GitHub.
+3. Armé y refiné el plan de desarrollo, tomando la decisión de hacer un primer MVP mockeando la respuesta del LLM para validar el flujo completo de la API antes de integrar un proveedor real.
+4. Implementé el endpoint `/chat` con FastAPI: validación de datos con Pydantic, historial en memoria, manejo de errores y logging con Loguru.
+5. Probé el servidor local enviando peticiones POST desde otra terminal. Verifiqué logs y respuesta 200.
+6. Integré el SDK de Anthropic reemplazando el mock por llamadas reales a `claude-opus-4-7`, cargando la API key desde `.env` y actualizando el system prompt para Bircle Outdoors.
+7. Desarrollé el frontend con Streamlit usando `st.chat_input` y `st.chat_message`, con manejo de errores de conexión al backend.
+8. Actualicé el README para reflejar la arquitectura completa y las nuevas instrucciones de ejecución.

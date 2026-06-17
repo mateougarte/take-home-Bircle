@@ -4,3 +4,5 @@ loguru==0.7.3
 pydantic==2.13.4
 anthropic>=0.40.0
 python-dotenv>=1.0.0
+streamlit>=1.40.0
+requests>=2.32.0

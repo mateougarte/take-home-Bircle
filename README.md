@@ -41,6 +41,7 @@ Los dos servicios deben correr en paralelo, cada uno en su propia terminal. A fu
 **Terminal 1 — Backend (FastAPI):**
 
 ```bash
+venv\Scripts\activate
 uvicorn main:app --reload
 ```
 
@@ -49,6 +50,7 @@ Queda disponible en `http://127.0.0.1:8000`. La documentación interactiva (Swag
 **Terminal 2 — Frontend (Streamlit):**
 
 ```bash
+venv\Scripts\activate
 streamlit run app.py
 ```
 

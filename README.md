@@ -36,7 +36,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## Ejecución
 
-Los dos servicios deben correr en paralelo, cada uno en su propia terminal.
+Los dos servicios deben correr en paralelo, cada uno en su propia terminal. A futuro se podrían levantar juntos con un docker-compose up
 
 **Terminal 1 — Backend (FastAPI):**
 
@@ -94,12 +94,31 @@ Se utiliza `loguru` en lugar del módulo `logging` estándar por su configuraci�
 - `logger.success`: cuando la respuesta se generó y devolvió correctamente.
 
 ## Proceso de desarrollo
-
-1. Configuré el entorno virtual y las dependencias iniciales (FastAPI, uvicorn, pydantic, loguru).
-2. Conecté el entorno virtual a Claude Code y armé el repositorio inicial en GitHub.
-3. Armé y refiné el plan de desarrollo, tomando la decisión de hacer un primer MVP mockeando la respuesta del LLM para validar el flujo completo de la API antes de integrar un proveedor real.
-4. Implementé el endpoint `/chat` con FastAPI: validación de datos con Pydantic, historial en memoria, manejo de errores y logging con Loguru.
-5. Probé el servidor local enviando peticiones POST desde otra terminal. Verifiqué logs y respuesta 200.
-6. Integré el SDK de Anthropic reemplazando el mock por llamadas reales a `claude-opus-4-7`, cargando la API key desde `.env` y actualizando el system prompt para Bircle Outdoors.
+1. Configuré el entorno virtual y descargué las dependencias que iba a usar (pip, fastapi, uvicorn, pydantic).
+2. Conecté el entorno virtual a Claude Code, y armé el repositorio inicial de Github.
+3. Armé y refiné el plan de desarrollo, tomando la decisión de hacer un primer MVP mockeando la respuesta del LLM para validar el flujo completo de la API antes de integrar un proveedor real. También decidí agregar logs más visibles usando loguru
+4. Le pasé el prompt a Claude: " Crea un archivo llamado main.py. Necesito que construyas una API con FastAPI con las siguientes características:
+   Importa FastAPI, HTTPException y BaseModel de Pydantic. Importa logger de loguru.
+   Define un modelo Pydantic ChatRequest con user_id (str) y message (str).
+   Define un modelo ChatResponse con response (str).
+   Crea un diccionario global en memoria llamado conversation_history.
+   Crea una función asíncrona mock_llm_call(history: list) -> str que simule un retraso con asyncio.sleep(1) y devuelva una respuesta genérica basada en el último mensaje.
+   Crea el endpoint POST /chat. Este endpoint debe:
+    - Registrar con loguru (logger.info) que se recibió un mensaje indicando el user_id.
+    - Si el user_id no está en el historial, inicializar su lista con un System Prompt de un asistente de una tienda de electrónica.
+    - Añadir el mensaje del usuario al historial.
+    - Llamar a mock_llm_call dentro de un bloque try/except. Si falla, registrar el error con logger.error y lanzar un HTTPException 500.
+    - Añadir la respuesta del asistente al historial.
+    - Devolver el ChatResponse y registrar con loguru el éxito de la operación."
+5.Fui verificando el avance de Claude, y que me hiciera sentido lo que estaba haciendo en base al plan que había definido. 
+6. Probé y ejecuté el servidor local, y desde otra terminal le envié la petición post. Verifiqué que aparecían los logs, y que devolvía un 200 con mensaje genérico de atención. 
+7. Generé con IA el readme inicial, describiendo el servicio, las instrucciones para iniciarlo, y explicando las decisiones técnicas tomadas.
+8. Hice commit y push de lo generado, y luego adapté el readme para mejorar algunas explicaciones y justificaciones de decisiones.
+9. Investigué con Gemini la mejor opción para encarar una solución usando llm. Entiendo que para escalar esto, lo más conveniente sería tener un agente orquestador que a su vez derive las consultas a otro agente especializado en atención al cliente. Para esta ocasión consideré suficiente resolverlo con un único agente con un system prompt bien estructurado. Para no gastar mucho elegí el modelo haiku de claude, teniendo en cuenta que no debería necesitar mucho procesamiento más que una atención al cliente
+10. Integré el SDK de Anthropic reemplazando el mock por llamadas reales a `claude-opus-4-7`, cargando la API key desde `.env` y actualizando el system prompt para Bircle Outdoors.
 7. Desarrollé el frontend con Streamlit usando `st.chat_input` y `st.chat_message`, con manejo de errores de conexión al backend.
-8. Actualicé el README para reflejar la arquitectura completa y las nuevas instrucciones de ejecución.
+8. Actualicé el README para reflejar la arquitectura completa y las nuevas instrucciones de ejecución. Probé, y realicé el push.
+
+## Mejoras futuras
+- Usar un orquestador de agente, que derive al agente especializado en atención al cliente.
+- docker compose-up para levantarlo.
